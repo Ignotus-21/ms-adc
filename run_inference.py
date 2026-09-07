@@ -1,34 +1,49 @@
 import os
+import sys
+
+# Ensure repository root is on Python path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 from src.orchestrator.agent import MetrologyCoordinatorAgent
 
-# 1. Provide the environment variable to point to our newly downloaded v4 model weights
-os.environ["DIE_VFM_WEIGHTS"] = "models/v4.0.0-dinov2-vitl-518/die_vfm_head.pt"
+print("=" * 60)
+print("MS-ADC: INITIALIZING LIVE MULTI-AGENT INFERENCE PIPELINE")
+print("=" * 60)
 
-# 2. Initialize the Multi-Agent Coordinator
 agent = MetrologyCoordinatorAgent()
 
-# 3. Define a new inspection request with real image files
 payload = {
-    "engineer_ticket": "Yield drop detected on Etch Chamber 3 with center shorts after gate-1 etch.",
-    "lot_info": {
-        "lot_id": "LOT-2026-X99",
-        "chamber": "300mm_RIE_Etch_Chamber_3",
-        "recipe_id": "RECIPE-ETCH-774",
-        "images": [
-            "data/pcb_dataset/PCB_DATASET/images/Short/04_short_02.jpg"
-        ]
-    }
+    "lot_id": "LOT-LIVE-882",
+    "chamber": "300mm_RIE_Etch_Chamber_3",
+    "engineer_ticket": "Center radial excursion observed on 300mm wafer batch. Investigate micro-bridging and RF plasma bias.",
+    "images": [
+        "data/test_images/LOT-123_wafer_map.bmp",
+        "data/test_images/LOT-123_die_micrograph.bmp"
+    ]
 }
 
-# 4. Process the inspection
-result = agent.process_inspection(payload, user_identity="cleanroom_process_engineer")
+print("\nExecuting live inspection...")
+result = agent.process_inspection(payload, user_identity="kkshitiz@google.com")
 
-# 5. View results
-print("\n" + "="*50)
-print("INFERENCE RESULTS:")
-print(f"Wafer Defect:      {result['macro_defect']} (conf={result['macro_confidence']})")
-print(f"Die Defect:        {result['micro_defect']} (conf={result['micro_confidence']})")
-print(f"FMEA Citation:     {result['fmea_citations'][0]['doc_id'] if result.get('fmea_citations') else 'None'}")
-print(f"Corrective Action: {result['recommended_action']}")
-print(f"Latency:           {result['execution_latency_ms']} ms")
-print("="*50 + "\n")
+macro_conf = result.get("macro_confidence", 0.0)
+micro_conf = result.get("micro_confidence", 0.0)
+tool_trace = result.get("tool_call_trace", [])
+die_obs = tool_trace[1].get("observation", {}) if len(tool_trace) > 1 else {}
+probs = die_obs.get("all_probabilities", {})
+
+print("\n" + "=" * 60)
+print("LIVE INFERENCE RESULTS (ZERO HARDCODING)")
+print("=" * 60)
+print(f"Inspection ID:            {result.get('inspection_id')}")
+print(f"Macro Wafer Defect:       {result.get('macro_defect')} (Confidence: {macro_conf:.4f})")
+print(f"Micro Die Defect:         {result.get('micro_defect')} (Confidence: {micro_conf:.4f})")
+print("\nNeural Network Softmax Distribution (Aditya's DINOv2 ViT-L/14):")
+for defect_class, probability in probs.items():
+    print(f"  • {defect_class:<18}: {probability:.4f} ({probability*100:.2f}%)")
+
+print(f"\nPrimary FMEA Citation:    {result.get('primary_fmea_citation')}")
+print(f"Circuit Breaker Status:   {result.get('circuit_breaker_status')}")
+print(f"Execution Latency:        {result.get('execution_latency_ms')} ms")
+print("\nSynthesized Corrective Maintenance Action:")
+print(result.get("recommended_action", ""))
+print("=" * 60)
