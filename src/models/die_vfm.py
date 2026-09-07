@@ -36,7 +36,7 @@ class DieVFMModel(nn.Module):
     Set unfreeze_blocks > 0 to jointly fine-tune the final transformer blocks
     instead of using DINOv2 only as a frozen feature extractor.
     """
-    def __init__(self, backbone_name: str = "dinov2_vitb14", num_classes: int = 6, unfreeze_blocks: int = 0):
+    def __init__(self, backbone_name: str = "dinov2_vitb14", num_classes: int = 6, unfreeze_blocks: int = 0, pretrained: bool = True):
         super().__init__()
         self.backbone_name = backbone_name
         self.num_classes = num_classes
@@ -44,9 +44,9 @@ class DieVFMModel(nn.Module):
 
         # Load Vision Transformer
         try:
-            self.backbone = torch.hub.load("facebookresearch/dinov2", backbone_name)
+            self.backbone = torch.hub.load("facebookresearch/dinov2", backbone_name, pretrained=pretrained)
         except Exception:
-            self.backbone = torch.hub.load("facebookresearch/dinov2", backbone_name, source="local")
+            self.backbone = torch.hub.load("facebookresearch/dinov2", backbone_name, source="local", pretrained=pretrained)
 
         for param in self.backbone.parameters():
             param.requires_grad = False
@@ -95,6 +95,8 @@ class DieVFMClassifier(DefectClassifierInterface):
         else:
             self.device = torch.device("cpu")
 
+        checkpoint = None
+        has_full_state_dict = False
         if weights_path and os.path.exists(weights_path):
             checkpoint = torch.load(weights_path, map_location="cpu", weights_only=False)
             if not isinstance(checkpoint, dict):
@@ -103,10 +105,17 @@ class DieVFMClassifier(DefectClassifierInterface):
             checkpoint_classes = checkpoint.get("classes", DIE_DEFECT_CLASSES)
             if checkpoint_classes != DIE_DEFECT_CLASSES:
                 raise ValueError("Checkpoint defect classes do not match the deployed classifier")
+            if "model_state_dict" in checkpoint:
+                has_full_state_dict = True
 
         self.backbone_name = backbone_name
-        unfreeze_blocks = checkpoint.get("unfreeze_blocks", unfreeze_blocks) if weights_path and os.path.exists(weights_path) else unfreeze_blocks
-        self.model = DieVFMModel(backbone_name=backbone_name, num_classes=num_classes, unfreeze_blocks=unfreeze_blocks).to(self.device)
+        unfreeze_blocks = checkpoint.get("unfreeze_blocks", unfreeze_blocks) if checkpoint else unfreeze_blocks
+        self.model = DieVFMModel(
+            backbone_name=backbone_name,
+            num_classes=num_classes,
+            unfreeze_blocks=unfreeze_blocks,
+            pretrained=not has_full_state_dict
+        ).to(self.device)
         self.torch_model = self.model
         self.torch_head = self.model.head
 

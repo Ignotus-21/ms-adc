@@ -20,20 +20,24 @@ class WaferVLMClassifier:
 
     def __init__(
         self,
-        model_name: str = "gemini-2.0-flash",
+        model_name: Optional[str] = None,
         prompt_config_path: Optional[str] = None
     ):
-        self.model_name = model_name
+        self.model_name = model_name or os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
         self.config_path = prompt_config_path or "config/prompts.yaml"
         self.api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
         self.client = None
 
-        if self.api_key or os.getenv("GOOGLE_GENAI_USE_VERTEXAI"):
-            try:
-                from google import genai
-                self.client = genai.Client(api_key=self.api_key) if self.api_key else genai.Client()
-            except Exception:
-                self.client = None
+        try:
+            from google import genai
+            if self.api_key:
+                self.client = genai.Client(api_key=self.api_key)
+            else:
+                project_id = os.getenv("PROJECT_ID", "kshitiz-gemma3")
+                location = os.getenv("VERTEX_LOCATION", "us-central1")
+                self.client = genai.Client(vertexai=True, project=project_id, location=location)
+        except Exception:
+            self.client = None
 
     def is_matrix(self, input_data: Any) -> bool:
         return isinstance(input_data, list) and len(input_data) > 0 and isinstance(input_data[0], list)
