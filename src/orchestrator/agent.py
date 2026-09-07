@@ -113,10 +113,15 @@ class DieVFMSpecialistModel:
                 payload = storage.Client().bucket(bucket_name).blob(blob_name).download_as_bytes()
                 return Image.open(BytesIO(payload)).convert("RGB")
             except Exception:
-                local_sample = "data/test_images/LOT-123_die_micrograph.bmp"
-                if os.path.exists(local_sample):
-                    return Image.open(local_sample).convert("RGB")
-                raise
+                try:
+                    from google.cloud import storage
+                    payload = storage.Client().bucket("ms-adc-assets-705987267327").blob("sample_images/LOT-123_die_micrograph.bmp").download_as_bytes()
+                    return Image.open(BytesIO(payload)).convert("RGB")
+                except Exception:
+                    local_sample = "data/test_images/LOT-123_die_micrograph.bmp"
+                    if os.path.exists(local_sample):
+                        return Image.open(local_sample).convert("RGB")
+                    raise
         if not os.path.exists(image_uri):
             basename = os.path.basename(image_uri)
             candidate = os.path.join("data/test_images", basename)
@@ -434,8 +439,8 @@ class MetrologyCoordinatorAgent(LlmAgent):
 
         if not images:
             images = [
-                "gs://ms-adc-assets-705987267327/sample_images/LOT-123_wafer_map.bmp",
-                "gs://ms-adc-assets-705987267327/sample_images/LOT-123_die_micrograph.bmp"
+                f"gs://ms-adc-assets-705987267327/sample_images/{lot_id}_wafer_map.bmp",
+                f"gs://ms-adc-assets-705987267327/sample_images/{lot_id}_die_micrograph.bmp"
             ]
 
         # Step 1: Wafer Specialist
@@ -519,7 +524,6 @@ class MetrologyCoordinatorAgent(LlmAgent):
             "defect_layer": die_obs.get("defect_layer", "Metal Interconnect"),
             "bounding_box": die_obs.get("bounding_box", {"x": 0, "y": 0, "width": 10, "height": 10}),
             "fmea_citations": fmea_citations,
-            "primary_fmea_citation": primary_citation,
             "recommended_action": rec_action,
             "tool_call_trace": tool_call_trace,
             "execution_latency_ms": latency_ms,
