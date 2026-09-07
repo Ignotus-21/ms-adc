@@ -86,6 +86,16 @@ class DieVFMSpecialistModel:
                 chosen_path = c
                 break
 
+        if not chosen_path:
+            try:
+                from google.cloud import storage
+                gcs_target = "models/v4.0.0-dinov2-vitl-518/die_vfm_head.pt"
+                os.makedirs("models/v4.0.0-dinov2-vitl-518", exist_ok=True)
+                storage.Client().bucket("ms-adc-assets-705987267327").blob("models/v4.0.0-dinov2-vitl-518/die_vfm_head.pt").download_to_filename(gcs_target)
+                chosen_path = gcs_target
+            except Exception:
+                pass
+
         try:
             from src.models.die_vfm import DieVFMClassifier
             if not chosen_path:
