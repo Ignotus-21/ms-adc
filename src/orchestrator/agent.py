@@ -403,7 +403,12 @@ class MetrologyCoordinatorAgent(LlmAgent):
         })
 
         # Step 4: Dynamically derive action from retrieved FMEA chunk content
-        rec_action = self._extract_grounded_action(chamber, fmea_citations)
+        raw_rec_action = self._extract_grounded_action(chamber, fmea_citations)
+
+        # Step 5: Vertex AI Model Armor Egress Template Verification
+        is_safe_egress, rec_action = self.prompt_guard.validate_output(raw_rec_action)
+        if not is_safe_egress:
+            rec_action = "Security Notice: Output sanitized by Vertex Model Armor Egress Template to prevent secret disclosure."
 
         latency_ms = round((time.time() - start_time) * 1000.0, 2)
         circuit_status = "CIRCUIT_OPEN_FALLBACK" if self.circuit_breaker.state == CircuitState.OPEN else "PRIMARY_SUCCESS"

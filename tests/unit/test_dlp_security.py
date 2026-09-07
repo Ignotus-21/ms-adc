@@ -47,6 +47,19 @@ class TestSecurityAndGatewaySuite(unittest.TestCase):
         valid, msg = self.prompt_guard.validate_input(benign)
         self.assertTrue(valid)
 
+    def test_model_armor_egress_template_sanitization(self):
+        # Safe AI response passes through
+        safe_response = "Execute per FMEA-RIE-300 (Chamber 3 Maintenance): Clean electrostatic chuck."
+        is_safe, sanitized = self.prompt_guard.validate_output(safe_response)
+        self.assertTrue(is_safe)
+        self.assertEqual(sanitized, safe_response)
+
+        # Leak attempt is detected and sanitized
+        leaky_response = "Execute repair with secret key AIzaSyD98f7gH6j5k4l3m2n1o0p_q-rstuvwx and password=AdminMasterKey!"
+        is_safe_leak, sanitized_leak = self.prompt_guard.validate_output(leaky_response)
+        self.assertFalse(is_safe_leak)
+        self.assertEqual(sanitized_leak, "[REDACTED_BY_MODEL_ARMOR_EGRESS]")
+
     def test_circuit_breaker_failover_mechanism(self):
         cb = CircuitBreaker(failure_threshold=2, recovery_time_s=1.0)
         def failing_vlm():
