@@ -433,7 +433,10 @@ class MetrologyCoordinatorAgent(LlmAgent):
         images = lot_info.get("images", sanitized_data.get("images", []))
 
         if not images:
-            images = [f"gs://semicon-raw/{lot_id}/wafer_map.png", f"gs://semicon-raw/{lot_id}/die_micrograph.png"]
+            images = [
+                "gs://ms-adc-assets-705987267327/sample_images/LOT-123_wafer_map.bmp",
+                "gs://ms-adc-assets-705987267327/sample_images/LOT-123_die_micrograph.bmp"
+            ]
 
         # Step 1: Wafer Specialist
         wafer_img = images[0]
