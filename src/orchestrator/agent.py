@@ -115,38 +115,59 @@ class DieVFMSpecialistModel:
 # Central Metrology Coordinator (Google ADK Lead Tool-Calling Agent)
 # ============================================================================
 
+class MetrologyFunctionTool(FunctionTool):
+    def execute(self, *args, **kwargs) -> Any:
+        return self.func(*args, **kwargs)
+
 class MetrologyCoordinatorAgent(LlmAgent):
     """
     Autonomous Multi-Agent Coordinator using Google Agent Development Kit (ADK 2.0) Tool Calling.
     Executes real vision models, retrieves grounded FMEA citations, and derives actions dynamically from corpus text.
     """
+    model_config = {"arbitrary_types_allowed": True, "extra": "allow"}
+
     def __init__(self, retriever: Optional[FMEARetriever] = None):
-        self.dlp = CloudDLPSanitizer()
-        self.prompt_guard = PromptGuard()
-        self.audit_logger = MetrologyAuditLogger()
-        self.circuit_breaker = CircuitBreaker()
+        # 1. Specialist models and grounded FMEA corpus retriever
+        wafer_model = WaferVLMClassifier()
+        die_model = DieVFMSpecialistModel()
+        fmea_retriever = retriever or FMEARetriever()
+        circuit_breaker = CircuitBreaker()
 
-        # Real specialist models and grounded FMEA corpus retriever
-        self.wafer_model = WaferVLMClassifier()
-        self.die_model = DieVFMSpecialistModel()
-        self.fmea_retriever = retriever or FMEARetriever()
+        def _inspect_wafer(chamber: str, image_uri: str) -> Dict[str, Any]:
+            """Analyzes 300mm wafer spatial maps to classify macro spatial failure patterns and defect density D0."""
+            res, _ = circuit_breaker.execute(
+                primary_fn=lambda: wafer_model.classify(chamber, image_uri),
+                fallback_fn=lambda: {
+                    "macro_defect": "Center",
+                    "macro_confidence": 0.88,
+                    "defect_density_D0": 0.40,
+                    "die_yield_pct": 60.0,
+                    "spatial_cluster_evidence": "Fallback local heuristic: no spatial cluster evidence available.",
+                    "pattern_description": "Fallback local heuristic: Center defect signature."
+                }
+            )
+            return res
 
-        # Explicit Google ADK FunctionTools
-        self.tool_wafer = FunctionTool(
-            fn=self._tool_inspect_wafer_map,
-            name="inspect_wafer_map",
-            description="Analyzes 300mm wafer spatial maps to classify macro spatial failure patterns (Center, Donut, Scratch, Edge-Loc) and defect density D0."
-        )
-        self.tool_die = FunctionTool(
-            fn=self._tool_inspect_die_micrograph,
-            name="inspect_die_micrograph",
-            description="Analyzes high-resolution sub-micron SEM die micrographs to classify physical micro defects (Short, Open, Void, Particle)."
-        )
-        self.tool_rag = FunctionTool(
-            fn=self._tool_search_fmea_playbooks,
-            name="search_fmea_playbooks",
-            description="Searches SEMI-E10 cleanroom troubleshooting playbooks using multimodal defect and equipment chamber context."
-        )
+        def _inspect_die(chamber: str, image_uri: str) -> Dict[str, Any]:
+            """Analyzes high-resolution sub-micron SEM die micrographs to classify physical micro defects."""
+            res, _ = circuit_breaker.execute(
+                primary_fn=lambda: die_model.classify(chamber, image_uri),
+                fallback_fn=lambda: {
+                    "micro_defect": "Short",
+                    "micro_confidence": 0.85,
+                    "defect_layer": "Metal-1",
+                    "structural_damage": "Fallback local heuristic: Metal line bridging."
+                }
+            )
+            return res
+
+        def _search_fmea(query: str) -> List[Dict[str, Any]]:
+            """Searches SEMI-E10 cleanroom troubleshooting playbooks using multimodal defect and equipment chamber context."""
+            return fmea_retriever.retrieve(query, top_k=2)
+
+        tool_wafer = MetrologyFunctionTool(_inspect_wafer)
+        tool_die = MetrologyFunctionTool(_inspect_die)
+        tool_rag = MetrologyFunctionTool(_search_fmea)
 
         super().__init__(
             name="metrology_coordinator_orchestrator",
@@ -157,8 +178,19 @@ class MetrologyCoordinatorAgent(LlmAgent):
             2. Visually identify high-mag die SEM micrographs and invoke `inspect_die_micrograph`.
             3. Synthesize the findings and invoke `search_fmea_playbooks`.
             4. Formulate the final engineering corrective action report.""",
-            tools=[self.tool_wafer, self.tool_die, self.tool_rag]
+            tools=[tool_wafer, tool_die, tool_rag]
         )
+
+        self.dlp = CloudDLPSanitizer()
+        self.prompt_guard = PromptGuard()
+        self.audit_logger = MetrologyAuditLogger()
+        self.circuit_breaker = circuit_breaker
+        self.wafer_model = wafer_model
+        self.die_model = die_model
+        self.fmea_retriever = fmea_retriever
+        self.tool_wafer = tool_wafer
+        self.tool_die = tool_die
+        self.tool_rag = tool_rag
 
     def _tool_inspect_wafer_map(self, chamber: str, image_uri: str) -> Dict[str, Any]:
         res, status = self.circuit_breaker.execute(
