@@ -503,6 +503,8 @@ class MetrologyCoordinatorAgent(LlmAgent):
             fmea_citation=primary_citation,
             latency_ms=latency_ms,
             chamber=chamber,
+            macro_confidence=macro_conf,
+            micro_confidence=micro_conf,
             circuit_breaker_status=circuit_status
         )
 

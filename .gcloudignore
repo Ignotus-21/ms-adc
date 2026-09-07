@@ -7,9 +7,9 @@ __pycache__/
 *.pyc
 *.pyo
 .pytest_cache
-*.pt
 *.pth
 *.onnx
 *.plan
 *.engine
 .DS_Store
+!models/v4.0.0-dinov2-vitl-518/die_vfm_head.pt
