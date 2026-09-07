@@ -1,0 +1,14 @@
+{
+  "contentsDeltaUri": "gs://ms-adc-assets-705987267327/vector_index_data/",
+  "config": {
+    "dimensions": 768,
+    "approximateNeighborsCount": 10,
+    "distanceMeasureType": "COSINE_DISTANCE",
+    "algorithmConfig": {
+      "treeAhConfig": {
+        "leafNodeEmbeddingCount": 500,
+        "leafNodesToSearchPercent": 10
+      }
+    }
+  }
+}

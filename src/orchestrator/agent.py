@@ -11,6 +11,7 @@ from src.security.prompt_guard import PromptGuard
 from src.security.audit_logger import MetrologyAuditLogger
 from src.orchestrator.circuit_breaker import CircuitBreaker, CircuitState
 from src.rag.fmea_retriever import FMEARetriever
+from src.rag.vertex_vector_search import VertexVectorSearchClient
 from src.models.wafer_vlm import WaferVLMClassifier
 
 # ============================================================================
@@ -126,11 +127,11 @@ class MetrologyCoordinatorAgent(LlmAgent):
     """
     model_config = {"arbitrary_types_allowed": True, "extra": "allow"}
 
-    def __init__(self, retriever: Optional[FMEARetriever] = None):
+    def __init__(self, retriever: Optional[Any] = None):
         # 1. Specialist models and grounded FMEA corpus retriever
         wafer_model = WaferVLMClassifier()
         die_model = DieVFMSpecialistModel()
-        fmea_retriever = retriever or FMEARetriever()
+        fmea_retriever = retriever or VertexVectorSearchClient()
         circuit_breaker = CircuitBreaker()
 
         def _inspect_wafer(chamber: str, image_uri: str) -> Dict[str, Any]:
@@ -163,6 +164,8 @@ class MetrologyCoordinatorAgent(LlmAgent):
 
         def _search_fmea(query: str) -> List[Dict[str, Any]]:
             """Searches SEMI-E10 cleanroom troubleshooting playbooks using multimodal defect and equipment chamber context."""
+            if hasattr(fmea_retriever, "search"):
+                return fmea_retriever.search(query, top_k=2)
             return fmea_retriever.retrieve(query, top_k=2)
 
         tool_wafer = MetrologyFunctionTool(_inspect_wafer)
