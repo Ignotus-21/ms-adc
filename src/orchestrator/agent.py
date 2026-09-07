@@ -519,6 +519,7 @@ class MetrologyCoordinatorAgent(LlmAgent):
             "defect_layer": die_obs.get("defect_layer", "Metal Interconnect"),
             "bounding_box": die_obs.get("bounding_box", {"x": 0, "y": 0, "width": 10, "height": 10}),
             "fmea_citations": fmea_citations,
+            "primary_fmea_citation": primary_citation,
             "recommended_action": rec_action,
             "tool_call_trace": tool_call_trace,
             "execution_latency_ms": latency_ms,
