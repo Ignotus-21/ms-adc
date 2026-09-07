@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import MagicMock
 from src.security.dlp_sanitizer import CloudDLPSanitizer
 from src.security.prompt_guard import PromptGuard
 from src.orchestrator.circuit_breaker import CircuitBreaker, CircuitState
@@ -10,6 +11,14 @@ class TestSecurityAndGatewaySuite(unittest.TestCase):
         self.dlp = CloudDLPSanitizer()
         self.prompt_guard = PromptGuard()
         self.agent = MetrologyCoordinatorAgent()
+        # Mock the vision model so security/routing tests don't depend on real checkpoint accuracy (Comp 28).
+        self.agent.die_model.classify = MagicMock(return_value={
+            "micro_defect": "Short",
+            "micro_confidence": 0.982,
+            "defect_layer": "Metal-1 Interconnect",
+            "structural_damage": "Metal line bridging from incomplete oxide etching.",
+            "all_probabilities": {}
+        })
         self.webhook = FabWebhookDispatcher(secret_key="test-key-300mm")
 
     def test_dlp_recipe_ip_and_pii_redaction(self):

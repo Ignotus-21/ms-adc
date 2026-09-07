@@ -4,7 +4,11 @@ import json
 from pathlib import Path
 from typing import Dict, Any, Union, Optional, Tuple, List
 
+from dotenv import load_dotenv
+
 from src.ingestion.image_utils import read_image_pixels
+
+load_dotenv()
 
 class WaferVLMClassifier:
     """

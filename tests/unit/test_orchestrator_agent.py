@@ -1,9 +1,40 @@
 import unittest
+from unittest.mock import MagicMock
 from src.orchestrator.agent import MetrologyCoordinatorAgent
+
+
+def _mock_die_classify(chamber: str, image_uri: str):
+    """Deterministic per-chamber stub so routing/tool-calling logic can be
+    tested independent of real DINOv2 checkpoint accuracy (Comp 28)."""
+    if "litho" in chamber.lower():
+        return {
+            "micro_defect": "Open_circuit",
+            "micro_confidence": 0.978,
+            "defect_layer": "Photoresist Line",
+            "structural_damage": "Pattern discontinuity from photoresist collapse.",
+            "all_probabilities": {}
+        }
+    elif "cmp" in chamber.lower():
+        return {
+            "micro_defect": "Spurious_copper",
+            "micro_confidence": 0.965,
+            "defect_layer": "Dielectric Barrier",
+            "structural_damage": "Unpolished copper residue and micro-scratch.",
+            "all_probabilities": {}
+        }
+    return {
+        "micro_defect": "Short",
+        "micro_confidence": 0.982,
+        "defect_layer": "Metal-1 Interconnect",
+        "structural_damage": "Metal line bridging from incomplete oxide etching.",
+        "all_probabilities": {}
+    }
+
 
 class TestOrchestratorAgentSuite(unittest.TestCase):
     def setUp(self):
         self.agent = MetrologyCoordinatorAgent()
+        self.agent.die_model.classify = MagicMock(side_effect=_mock_die_classify)
 
     def test_agent_etch_chamber_full_tool_call_flow(self):
         payload = {

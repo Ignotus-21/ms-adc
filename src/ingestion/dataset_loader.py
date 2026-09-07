@@ -24,8 +24,8 @@ class PCBDefectDatasetLoader:
         data_dir: Optional[Union[str, Path]] = None,
         k_shot: int = 10,
         val_ratio: float = 0.2,
-        target_size: Tuple[int, int] = (224, 224),
-        crop_padding: int = 40
+        target_size: Tuple[int, int] = (518, 518),
+        crop_padding: int = 150
     ):
         if data_dir is not None:
             self.data_dir = Path(data_dir)
@@ -111,3 +111,78 @@ class PCBDefectDatasetLoader:
     def get_k_shot_split(self, k_shot: int = 10) -> Tuple[Dict[str, List[Path]], Dict[str, List[Path]]]:
         train_split, val_split, test_split = self.get_stratified_split(k_shot_train=k_shot, val_ratio=0.0)
         return train_split, test_split
+
+    def find_annotation_xml(self, image_path: Path) -> Optional[Path]:
+        """Locates corresponding Pascal VOC XML annotation file for given image."""
+        # Standard PCB dataset structure: 
+        # Images: PCB_DATASET/images/<Class>/<stem>.jpg
+        # Annotations: PCB_DATASET/Annotations/<Class>/<stem>.xml
+        
+        # Check standard Kaggle hierarchy
+        parent_class = image_path.parent.name
+        
+        # Try path relative to images folder
+        if "images" in image_path.parts:
+            # find index of 'images'
+            img_idx = image_path.parts.index("images")
+            # reconstruct path replacing 'images' with 'Annotations'
+            parts = list(image_path.parts)
+            parts[img_idx] = "Annotations"
+            xml_candidate = Path(*parts).with_suffix(".xml")
+            if xml_candidate.exists():
+                return xml_candidate
+                
+        # Try sibling directory lookup (common fallback)
+        candidates = [
+            image_path.parents[1] / "Annotations" / parent_class / f"{image_path.stem}.xml",
+            image_path.parents[2] / "Annotations" / parent_class / f"{image_path.stem}.xml",
+            image_path.parent / f"{image_path.stem}.xml",
+        ]
+        
+        for c in candidates:
+            if c.exists():
+                return c
+        return None
+
+    def load_and_preprocess_image(self, path: Union[str, Path]) -> Any:
+        from PIL import Image
+        import xml.etree.ElementTree as ET
+        
+        path = Path(path)
+        img = Image.open(path).convert("RGB")
+        xml_path = self.find_annotation_xml(path)
+        
+        if xml_path and xml_path.exists():
+            try:
+                tree = ET.parse(xml_path)
+                root = tree.getroot()
+                
+                # Check ALL bounding boxes and take the largest one to give the model the most context
+                best_box = None
+                max_area = 0
+                for obj in root.findall("object"):
+                    bndbox = obj.find("bndbox")
+                    if bndbox is not None:
+                        xmin = int(bndbox.find("xmin").text)
+                        ymin = int(bndbox.find("ymin").text)
+                        xmax = int(bndbox.find("xmax").text)
+                        ymax = int(bndbox.find("ymax").text)
+                        area = (xmax - xmin) * (ymax - ymin)
+                        if area > max_area:
+                            max_area = area
+                            best_box = (xmin, ymin, xmax, ymax)
+                            
+                if best_box:
+                    xmin, ymin, xmax, ymax = best_box
+                    xmin = max(0, xmin - self.crop_padding)
+                    ymin = max(0, ymin - self.crop_padding)
+                    xmax = min(img.width, xmax + self.crop_padding)
+                    ymax = min(img.height, ymax + self.crop_padding)
+                    
+                    if xmax > xmin and ymax > ymin:
+                        img = img.crop((xmin, ymin, xmax, ymax))
+            except Exception as e:
+                pass
+
+        # Ensure image is resized to target dimension for VFM
+        return img.resize(self.target_size, Image.Resampling.BILINEAR)

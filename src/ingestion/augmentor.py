@@ -20,7 +20,7 @@ class MetrologyAugmentor:
     Applies physical invariant transformations (orthogonal rotations, axial reflections)
     and cleanroom illumination variations to boost sample efficiency in few-shot regimes.
     """
-    def __init__(self, target_size: int = 224):
+    def __init__(self, target_size: int = 518):
         self.target_size = target_size
 
     def get_torch_train_transform(self) -> Any:
@@ -33,7 +33,9 @@ class MetrologyAugmentor:
             T.RandomHorizontalFlip(p=0.5),
             T.RandomVerticalFlip(p=0.5),
             T.RandomRotation(degrees=(-180, 180)),
-            T.ColorJitter(brightness=0.15, contrast=0.15),
+            T.RandomAffine(degrees=0, translate=(0.1, 0.1), scale=(0.9, 1.1)),
+            T.RandomPerspective(distortion_scale=0.2, p=0.5),
+            T.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
             T.ToTensor(),
             T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])

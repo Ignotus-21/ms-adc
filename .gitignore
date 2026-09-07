@@ -72,6 +72,11 @@ override.tf.json
 /models/*.onnx
 /models/*.engine
 
+# Trained model artifacts (checkpoints, exported weights, generated plots):
+# too large/volatile for git; archived to GCS via scripts/upload_to_gcs.py instead.
+/models/*
+!/models/.gitkeep
+
 # Experiment Tracking
 runs/
 mlruns/

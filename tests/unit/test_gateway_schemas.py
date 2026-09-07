@@ -66,33 +66,24 @@ class TestGatewaySchemasSuite(unittest.TestCase):
 
     def test_inspection_response_schema_validation(self):
         resp_data = {
-            "inspection_id": "INSP-A1B2C3D4",
-            "timestamp": "2026-08-24T12:00:00Z",
             "lot_id": "LOT-123",
             "chamber": "300mm_RIE_Etch_Chamber_3",
             "macro_defect": "Center",
             "macro_confidence": 0.965,
+            "defect_density_D0": 0.42,
+            "die_yield_pct": 58.0,
             "micro_defect": "Short",
             "micro_confidence": 0.982,
             "fmea_citations": [{"doc_id": "FMEA-SOP-01", "section_title": "RF Diagnostics"}],
             "recommended_action": "Check RF Match Capacitor",
-            "tool_call_trace": [
-                {
-                    "step": 1,
-                    "agent_thought": "Inspecting wafer map",
-                    "tool_call": "inspect_wafer_map",
-                    "tool_args": {"chamber": "300mm_RIE_Etch_Chamber_3"},
-                    "observation": {"macro_defect": "Center"}
-                }
-            ],
             "execution_latency_ms": 42.5,
-            "circuit_breaker_status": "PRIMARY_SUCCESS",
-            "agent_framework": "Google_Agent_Development_Kit_2.0"
+            "audit_id": "INSP-A1B2C3D4",
+            "circuit_breaker_status": "PRIMARY_SUCCESS"
         }
         resp = InspectionResponse(**resp_data)
-        self.assertEqual(resp.inspection_id, "INSP-A1B2C3D4")
+        self.assertEqual(resp.audit_id, "INSP-A1B2C3D4")
         self.assertEqual(resp.macro_defect, "Center")
-        self.assertEqual(resp.agent_framework, "Google_Agent_Development_Kit_2.0")
+        self.assertEqual(resp.circuit_breaker_status, "PRIMARY_SUCCESS")
 
 if __name__ == "__main__":
     unittest.main()

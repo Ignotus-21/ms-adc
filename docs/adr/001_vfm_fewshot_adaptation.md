@@ -42,3 +42,10 @@ We decided to adopt **NVIDIA NV-DINOv2 (Vision Transformer ViT-B/14)** self-supe
 
 ### Negative Consequences & Mitigations:
 * *Higher memory footprint during feature extraction:* Mitigated by caching extracted patch embeddings in memory and executing batched inference via TensorRT FP16 precision.
+
+---
+
+## Post-Implementation Update (2026-09-03)
+
+The $98.51\%$ accuracy figure above was produced by an early mock/simulated training pipeline that generated plausible-looking metrics rather than training on real images. Once the pipeline was corrected to run genuine DINOv2 feature extraction and backpropagation on the real PCB defect corpus, measured accuracy came in far lower (40–56%, see [ADR 002](002_real_dinov2_accuracy_reassessment.md)). ADR 002 documents the real experimental results and a revised, evidence-based Definition of Done. The architectural decision in this ADR (frozen/lightly-unfrozen NV-DINOv2 + linear probe over a scratch-trained CNN) still stands; only the accuracy claim is superseded.
+

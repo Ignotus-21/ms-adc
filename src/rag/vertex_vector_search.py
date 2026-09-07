@@ -4,6 +4,8 @@ import logging
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 
+from config.settings import settings
+
 logger = logging.getLogger("MS-ADC.VertexVectorSearch")
 
 class VertexVectorSearchClient:

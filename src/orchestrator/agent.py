@@ -1,7 +1,10 @@
+import os
 import time
 import uuid
 import datetime
+from io import BytesIO
 from typing import Dict, Any, List, Optional, Callable
+from PIL import Image
 
 from src.security.dlp_sanitizer import CloudDLPSanitizer
 from src.security.prompt_guard import PromptGuard
@@ -9,7 +12,6 @@ from src.security.audit_logger import MetrologyAuditLogger
 from src.orchestrator.circuit_breaker import CircuitBreaker, CircuitState
 from src.rag.fmea_retriever import FMEARetriever
 from src.models.wafer_vlm import WaferVLMClassifier
-from src.models.die_vfm import DieVFMClassifier
 
 # ============================================================================
 # Google Agent Development Kit (ADK 2.0) Architecture & Tooling Interfaces
@@ -55,6 +57,61 @@ except ImportError:
             return context
 
 # ============================================================================
+# Die Specialist: real trained DINOv2 linear probe (see ADR 001/002)
+# ============================================================================
+
+# Fields our real classifier doesn't model (no defect localization), kept
+# for schema compatibility with downstream code that expects them.
+_DIE_UNMODELED_FIELDS = {
+    "bounding_box": {"x": 0, "y": 0, "width": 0, "height": 0},
+    "defect_area_nm2": 0.0,
+}
+
+
+class DieVFMSpecialistModel:
+    """Micro Die Specialist backed by a trained DINOv2 linear probe."""
+    def __init__(self, checkpoint_path: Optional[str] = "models/v1.6.0-dinov2-unfreeze4/die_vfm_head.pt"):
+        self.classifier = None
+        self.load_error: Optional[str] = None
+        try:
+            from src.models.die_vfm import DieVFMClassifier
+            if not checkpoint_path or not os.path.exists(checkpoint_path):
+                raise FileNotFoundError(f"Trained VFM checkpoint not found: {checkpoint_path}")
+            self.classifier = DieVFMClassifier(weights_path=checkpoint_path)
+        except Exception as error:
+            self.load_error = str(error)
+
+    @staticmethod
+    def _load_image(image_uri: str) -> Image.Image:
+        if image_uri.startswith("gs://"):
+            from google.cloud import storage
+
+            bucket_name, blob_name = image_uri[5:].split("/", 1)
+            payload = storage.Client().bucket(bucket_name).blob(blob_name).download_as_bytes()
+            return Image.open(BytesIO(payload)).convert("RGB")
+        return Image.open(image_uri).convert("RGB")
+
+    def classify(self, chamber: str, image_uri: str) -> Dict[str, Any]:
+        if self.classifier is None:
+            raise ValueError(f"Die VFM is unavailable: {self.load_error}")
+        if not image_uri:
+            raise ValueError("A local path or gs:// URI is required for die image inference")
+
+        try:
+            result = self.classifier.classify_patch(self._load_image(image_uri))
+        except Exception as error:
+            raise ValueError(f"Unable to classify die image '{image_uri}': {error}") from error
+
+        return {
+            "micro_defect": result["predicted_class"].capitalize(),
+            "micro_confidence": result["confidence"],
+            "defect_layer": "Micrograph Optical Patch",
+            "structural_damage": f"Detected physical pattern defect: {result['predicted_class']}",
+            "all_probabilities": result["all_probabilities"],
+            **_DIE_UNMODELED_FIELDS,
+        }
+
+# ============================================================================
 # Central Metrology Coordinator (Google ADK Lead Tool-Calling Agent)
 # ============================================================================
 
@@ -68,10 +125,10 @@ class MetrologyCoordinatorAgent(LlmAgent):
         self.prompt_guard = PromptGuard()
         self.audit_logger = MetrologyAuditLogger()
         self.circuit_breaker = CircuitBreaker()
-        
+
         # Real specialist models and grounded FMEA corpus retriever
         self.wafer_model = WaferVLMClassifier()
-        self.die_model = DieVFMClassifier()
+        self.die_model = DieVFMSpecialistModel()
         self.fmea_retriever = retriever or FMEARetriever()
 
         # Explicit Google ADK FunctionTools
@@ -110,6 +167,8 @@ class MetrologyCoordinatorAgent(LlmAgent):
                 "macro_defect": "Center",
                 "macro_confidence": 0.88,
                 "defect_density_D0": 0.40,
+                "die_yield_pct": 60.0,
+                "spatial_cluster_evidence": "Fallback local heuristic: no spatial cluster evidence available.",
                 "pattern_description": "Fallback local heuristic: Center defect signature."
             }
         )
@@ -122,7 +181,9 @@ class MetrologyCoordinatorAgent(LlmAgent):
                 "micro_defect": "Short",
                 "micro_confidence": 0.85,
                 "defect_layer": "Metal-1",
-                "structural_damage": "Fallback local heuristic: Metal line bridging."
+                "structural_damage": "Fallback local heuristic: Metal line bridging.",
+                "all_probabilities": {},
+                **_DIE_UNMODELED_FIELDS,
             }
         )
         return res
@@ -162,7 +223,7 @@ class MetrologyCoordinatorAgent(LlmAgent):
             elif "### 2.2" in line or "corrective action" in line.lower():
                 current_section = "sop"
                 continue
-            
+
             # Skip non-body or pattern header metadata
             if line.startswith("#") or "wafer spatial pattern" in line.lower() or "die micro-defect" in line.lower() or line == "* **Physical Root Cause:**":
                 continue
@@ -296,7 +357,7 @@ class MetrologyCoordinatorAgent(LlmAgent):
 
         sanitized_data, _ = self.dlp.sanitize_dict(request_data)
         lot_info = sanitized_data.get("lot_info", {})
-        
+
         lot_id = lot_info.get("lot_id", sanitized_data.get("lot_id", "LOT-123"))
         chamber = lot_info.get("chamber", sanitized_data.get("tool_chamber", "300mm_RIE_Etch_Chamber_3"))
         images = lot_info.get("images", sanitized_data.get("images", []))
