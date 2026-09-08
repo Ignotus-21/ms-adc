@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<AssignMessage async="false" continueOnError="false" enabled="true" name="Mint-Google-OIDC-Token">
+    <DisplayName>Inject Google Cloud Run OIDC Target</DisplayName>
+    <AssignVariable>
+        <Name>target.authentication.audience</Name>
+        <Value>https://ms-adc-api-be4mdtaema-uc.a.run.app</Value>
+    </AssignVariable>
+    <IgnoreUnresolvedVariables>true</IgnoreUnresolvedVariables>
+</AssignMessage>

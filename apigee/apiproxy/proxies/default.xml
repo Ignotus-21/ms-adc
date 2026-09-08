@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<ProxyEndpoint name="default">
+    <Description>Cleanroom Edge Endpoint for MS-ADC Metrology Services</Description>
+    <FaultRules/>
+    <PreFlow name="PreFlow">
+        <Request>
+            <Step>
+                <Name>Spike-Arrest-120pm</Name>
+            </Step>
+            <Step>
+                <Name>Verify-Fab-API-Key</Name>
+                <Condition>request.verb != "OPTIONS" and proxy.pathsuffix != "/healthz"</Condition>
+            </Step>
+            <Step>
+                <Name>Quota-Per-Chamber</Name>
+                <Condition>request.verb != "OPTIONS" and proxy.pathsuffix != "/healthz"</Condition>
+            </Step>
+            <Step>
+                <Name>Assign-Cleanroom-Headers</Name>
+            </Step>
+        </Request>
+        <Response/>
+    </PreFlow>
+    <PostFlow name="PostFlow">
+        <Request/>
+        <Response>
+            <Step>
+                <Name>Set-Edge-Security-Headers</Name>
+            </Step>
+        </Response>
+    </PostFlow>
+    <Flows>
+        <Flow name="CompositeInspection">
+            <Description>Hierarchical Wafer Map + Die Micrograph + FMEA Inspection</Description>
+            <Request/>
+            <Response/>
+            <Condition>(proxy.pathsuffix MatchesPath "/inspect") and (request.verb = "POST")</Condition>
+        </Flow>
+        <Flow name="WaferInspection">
+            <Description>Macro Wafer Bin Map Spatial Pattern Inspection (WM-811K)</Description>
+            <Request/>
+            <Response/>
+            <Condition>(proxy.pathsuffix MatchesPath "/inspect/wafer") and (request.verb = "POST")</Condition>
+        </Flow>
+        <Flow name="DieInspection">
+            <Description>Micro Die Defect SEM Inspection (NV-DINOv2)</Description>
+            <Request/>
+            <Response/>
+            <Condition>(proxy.pathsuffix MatchesPath "/inspect/die") and (request.verb = "POST")</Condition>
+        </Flow>
+        <Flow name="HealthCheck">
+            <Description>Liveness and Readiness Probe</Description>
+            <Request/>
+            <Response/>
+            <Condition>(proxy.pathsuffix MatchesPath "/healthz") and (request.verb = "GET")</Condition>
+        </Flow>
+    </Flows>
+    <HTTPProxyConnection>
+        <BasePath>/v1</BasePath>
+        <Properties/>
+        <VirtualHost>secure</VirtualHost>
+    </HTTPProxyConnection>
+    <RouteRule name="to-cloud-run">
+        <TargetEndpoint>cloud-run-backend</TargetEndpoint>
+    </RouteRule>
+</ProxyEndpoint>

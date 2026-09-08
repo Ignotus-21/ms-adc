@@ -62,7 +62,7 @@ agent = MetrologyCoordinatorAgent()
 async def composite_inspection(
     request: CompositeInspectionRequest,
     background_tasks: BackgroundTasks,
-    principal: str = "authorized_cleanroom_engineer"
+    principal: str = Depends(verify_cleanroom_token)
 ):
     """
     Full hierarchical multimodal inspection: Macro Wafer Map + Micro Die Patch + Grounded FMEA RAG Retrieval.
@@ -77,7 +77,7 @@ async def composite_inspection(
 async def inspect_wafer(
     request: WaferInspectionRequest,
     background_tasks: BackgroundTasks,
-    principal: str = "authorized_cleanroom_engineer"
+    principal: str = Depends(verify_cleanroom_token)
 ):
     """
     Inspects 300mm macro wafer-bin maps for spatial defect pattern classification (WM-811K).
@@ -92,7 +92,7 @@ async def inspect_wafer(
 async def inspect_die(
     request: DieInspectionRequest,
     background_tasks: BackgroundTasks,
-    principal: str = "authorized_cleanroom_engineer"
+    principal: str = Depends(verify_cleanroom_token)
 ):
     """
     Inspects high-magnification sub-micron SEM die micrographs for micro-defect classification (NV-DINOv2).

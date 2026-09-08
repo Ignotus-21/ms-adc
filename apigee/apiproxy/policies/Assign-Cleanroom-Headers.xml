@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<AssignMessage async="false" continueOnError="false" enabled="true" name="Assign-Cleanroom-Headers">
+    <DisplayName>Assign Cleanroom Identity Headers</DisplayName>
+    <Add>
+        <Headers>
+            <Header name="X-Apigee-Proxy">MS-ADC-Metrology-v1</Header>
+            <Header name="X-Apigee-Client-Id">{verifyapikey.Verify-Fab-API-Key.client_id}</Header>
+            <Header name="X-Apigee-App-Name">{verifyapikey.Verify-Fab-API-Key.developer.app.name}</Header>
+            <Header name="X-Cleanroom-Engineer">{request.header.x-cleanroom-engineer}</Header>
+            <Header name="X-Fab-Tool-ID">{request.header.x-fab-tool-id}</Header>
+        </Headers>
+    </Add>
+    <IgnoreUnresolvedVariables>true</IgnoreUnresolvedVariables>
+    <AssignTo createNew="false" transport="http" type="request"/>
+</AssignMessage>

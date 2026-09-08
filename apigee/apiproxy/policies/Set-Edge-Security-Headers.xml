@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<AssignMessage async="false" continueOnError="false" enabled="true" name="Set-Edge-Security-Headers">
+    <DisplayName>Set Edge Security Headers</DisplayName>
+    <Set>
+        <Headers>
+            <Header name="X-Content-Type-Options">nosniff</Header>
+            <Header name="X-Frame-Options">DENY</Header>
+            <Header name="Strict-Transport-Security">max-age=31536000; includeSubDomains</Header>
+            <Header name="X-XSS-Protection">1; mode=block</Header>
+        </Headers>
+    </Set>
+    <IgnoreUnresolvedVariables>true</IgnoreUnresolvedVariables>
+    <AssignTo createNew="false" transport="http" type="response"/>
+</AssignMessage>

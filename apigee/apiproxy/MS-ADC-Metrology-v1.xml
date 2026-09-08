@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<APIProxy revision="1" name="MS-ADC-Metrology-v1">
+    <ConfigurationVersion majorVersion="4" minorVersion="0"/>
+    <CreatedAt>1725800000000</CreatedAt>
+    <CreatedBy>metrology-infra-lead@fab.semicon.com</CreatedBy>
+    <Description>Enterprise Edge API Gateway Proxy for MS-ADC 300mm Cleanroom Metrology, Spike Arrest, and OIDC Token Translation to Google Cloud Run</Description>
+    <DisplayName>MS-ADC Metrology Edge Gateway</DisplayName>
+    <LastModifiedAt>1725800000000</LastModifiedAt>
+    <LastModifiedBy>metrology-infra-lead@fab.semicon.com</LastModifiedBy>
+    <Policies>
+        <Policy>Verify-Fab-API-Key</Policy>
+        <Policy>Spike-Arrest-120pm</Policy>
+        <Policy>Quota-Per-Chamber</Policy>
+        <Policy>Assign-Cleanroom-Headers</Policy>
+        <Policy>Mint-Google-OIDC-Token</Policy>
+    </Policies>
+    <ProxyEndpoints>
+        <ProxyEndpoint>default</ProxyEndpoint>
+    </ProxyEndpoints>
+    <TargetEndpoints>
+        <TargetEndpoint>cloud-run-backend</TargetEndpoint>
+    </TargetEndpoints>
+</APIProxy>
