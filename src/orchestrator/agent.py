@@ -612,10 +612,20 @@ Perform full multimodal inspection using tools, search matching FMEA playbooks, 
                 circuit_breaker_status=circuit_status
             )
 
-        d0 = wafer_obs.get("defect_density_D0", 0.0)
-        yield_pct = wafer_obs.get("die_yield_pct")
-        if yield_pct is None:
-            yield_pct = round(max(0.0, (1.0 - float(d0)) * 100.0), 2)
+        d0_raw = wafer_obs.get("defect_density_D0")
+        try:
+            d0 = float(d0_raw) if d0_raw is not None else 0.0
+        except (ValueError, TypeError):
+            d0 = 0.0
+
+        yield_pct_raw = wafer_obs.get("die_yield_pct")
+        if yield_pct_raw is not None:
+            try:
+                yield_pct = float(yield_pct_raw)
+            except (ValueError, TypeError):
+                yield_pct = round(max(0.0, (1.0 - d0) * 100.0), 2)
+        else:
+            yield_pct = round(max(0.0, (1.0 - d0) * 100.0), 2)
 
         return {
             "inspection_id": inspection_id,
