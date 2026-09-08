@@ -169,10 +169,16 @@ class WaferVLMClassifier:
             config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.1)
         )
         parsed = json.loads(response.text)
+        d0 = parsed.get("defect_density_D0", 0.0)
+        if "failing_die_count" not in parsed:
+            parsed["failing_die_count"] = int(d0 * 100) if d0 else 0
+        if "total_die_count" not in parsed:
+            parsed["total_die_count"] = 100
         parsed["image_source"] = "GCS_URI" if image_uri.startswith("gs://") else "LOCAL_IMAGE_FILE"
         parsed["image_uri"] = image_uri
         parsed["model_architecture"] = f"Google-{self.model_name}-Multimodal-VLM"
         return parsed
+
 
     def classify(self, chamber: str, image_uri: Union[str, Path, List[List[int]], Any]) -> Dict[str, Any]:
         uri_str = str(image_uri)
