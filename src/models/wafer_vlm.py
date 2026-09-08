@@ -61,6 +61,15 @@ class WaferVLMClassifier:
 
         input_str = str(image_input)
 
+        # Check local test cache first when not in production to avoid network timeout on mock GCS URIs
+        if input_str.startswith("gs://") and os.getenv("ENVIRONMENT") != "production":
+            parts = input_str.replace("gs://", "").split("/")
+            lot_id = parts[-2] if len(parts) >= 2 and "LOT-" in parts[-2] else (Path(input_str).stem.split("_")[0] if "LOT-" in input_str else Path(input_str).stem)
+            root = Path(__file__).resolve().parents[2]
+            cached_img = root / "data" / "test_images" / f"{lot_id}_wafer_map.bmp"
+            if cached_img.exists():
+                return self.load_wafer_matrix(str(cached_img))
+
         # Case B: GCS URI
         if input_str.startswith("gs://"):
             try:
@@ -68,26 +77,26 @@ class WaferVLMClassifier:
                 from PIL import Image
                 from io import BytesIO
                 bucket_name, blob_name = input_str[5:].split("/", 1)
-                try:
-                    payload = storage.Client().bucket(bucket_name).blob(blob_name).download_as_bytes()
-                except Exception:
-                    payload = storage.Client().bucket("ms-adc-assets-705987267327").blob("sample_images/LOT-123_wafer_map.bmp").download_as_bytes()
-                img = Image.open(BytesIO(payload)).convert("RGB")
-                w, h = img.size
-                grid_size = 52
-                matrix = [[0 for _ in range(grid_size)] for _ in range(grid_size)]
-                for i in range(grid_size):
-                    for j in range(grid_size):
-                        px = min(int(j * (w / grid_size)), w - 1)
-                        py = min(int(i * (h / grid_size)), h - 1)
-                        r, g, b = img.getpixel((px, py))
-                        if r > 180 and g < 100:  # Red Defective Die
-                            matrix[i][j] = 2
-                        elif g > 100:  # Green Passing Die
-                            matrix[i][j] = 1
-                        else:  # Outside Wafer Background
-                            matrix[i][j] = 0
-                return matrix, {"source_type": "GCS_DECODED_IMAGE", "uri": input_str}
+                bucket = storage.Client().bucket(bucket_name)
+                blob = bucket.blob(blob_name)
+                if blob.exists(timeout=5.0):
+                    payload = blob.download_as_bytes(timeout=10.0)
+                    img = Image.open(BytesIO(payload)).convert("RGB")
+                    w, h = img.size
+                    grid_size = 52
+                    matrix = [[0 for _ in range(grid_size)] for _ in range(grid_size)]
+                    for i in range(grid_size):
+                        for j in range(grid_size):
+                            px = min(int(j * (w / grid_size)), w - 1)
+                            py = min(int(i * (h / grid_size)), h - 1)
+                            r, g, b = img.getpixel((px, py))
+                            if r > 180 and g < 100:  # Red Defective Die
+                                matrix[i][j] = 2
+                            elif g > 100:  # Green Passing Die
+                                matrix[i][j] = 1
+                            else:  # Outside Wafer Background
+                                matrix[i][j] = 0
+                    return matrix, {"source_type": "GCS_DECODED_IMAGE", "uri": input_str}
             except Exception:
                 pass
 
@@ -117,24 +126,26 @@ class WaferVLMClassifier:
             except Exception:
                 pass
 
-        # Case D: Local test_images directory lookup
-        lot_id = Path(input_str).parent.name if "/" in input_str else Path(input_str).stem
+        # Case D: Local test_images directory lookup by lot_id
+        parts = input_str.replace("gs://", "").split("/")
+        lot_id = parts[-2] if len(parts) >= 2 and "LOT-" in parts[-2] else (Path(input_str).stem.split("_")[0] if "LOT-" in input_str else Path(input_str).stem)
         root = Path(__file__).resolve().parents[2]
         cached_img = root / "data" / "test_images" / f"{lot_id}_wafer_map.bmp"
         if cached_img.exists():
             return self.load_wafer_matrix(str(cached_img))
-        default_img = root / "data" / "test_images" / "LOT-123_wafer_map.bmp"
-        if default_img.exists():
-            return self.load_wafer_matrix(str(default_img))
 
-        # Case D: JSON matrix file
+        # Case E: JSON matrix file
         if os.path.exists(input_str) and input_str.endswith(".json"):
             with open(input_str, "r") as f:
                 raw_mat = json.load(f)
                 if self.is_matrix(raw_mat):
                     return self.validate_matrix(raw_mat), {"source_type": "LOCAL_MATRIX_JSON", "uri": input_str}
 
-        # Case E: Default nominal matrix
+        if input_str.startswith("gs://") and not os.getenv("ENVIRONMENT"):
+            # If GCS asset not reachable in local test cache, check if nominal default applies
+            pass
+
+        # Case F: Default nominal matrix
         grid_size = 52
         radius = grid_size / 2.0
         nominal_matrix = [[1 if math.sqrt((i - radius)**2 + (j - radius)**2) / radius <= 1.0 else 0 for j in range(grid_size)] for i in range(grid_size)]
@@ -144,17 +155,18 @@ class WaferVLMClassifier:
         from google.genai import types
 
         if image_uri.startswith("gs://"):
-            try:
-                from google.cloud import storage
-                bucket_name, blob_name = image_uri[5:].split("/", 1)
-                data = storage.Client().bucket(bucket_name).blob(blob_name).download_as_bytes()
-                mime = "image/bmp" if image_uri.endswith(".bmp") else "image/png"
-                image_part = types.Part.from_bytes(data=data, mime_type=mime)
-            except Exception:
-                from google.cloud import storage
-                data = storage.Client().bucket("ms-adc-assets-705987267327").blob("sample_images/LOT-123_wafer_map.bmp").download_as_bytes()
-                image_part = types.Part.from_bytes(data=data, mime_type="image/bmp")
+            from google.cloud import storage
+            bucket_name, blob_name = image_uri[5:].split("/", 1)
+            bucket = storage.Client().bucket(bucket_name)
+            blob = bucket.blob(blob_name)
+            if not blob.exists():
+                raise FileNotFoundError(f"GCS wafer map '{image_uri}' does not exist.")
+            data = blob.download_as_bytes()
+            mime = "image/bmp" if image_uri.endswith(".bmp") else "image/png"
+            image_part = types.Part.from_bytes(data=data, mime_type=mime)
         else:
+            if not os.path.exists(image_uri):
+                raise FileNotFoundError(f"Local wafer map image '{image_uri}' does not exist.")
             mime = "image/bmp" if image_uri.endswith(".bmp") else "image/png"
             with open(image_uri, "rb") as f:
                 image_part = types.Part.from_bytes(data=f.read(), mime_type=mime)
@@ -182,7 +194,7 @@ class WaferVLMClassifier:
 
     def classify(self, chamber: str, image_uri: Union[str, Path, List[List[int]], Any]) -> Dict[str, Any]:
         uri_str = str(image_uri)
-        if self.client is not None and isinstance(image_uri, (str, Path)):
+        if (os.getenv("USE_GEMINI_VLM") == "true" or os.getenv("ENVIRONMENT") == "production") and self.client is not None and isinstance(image_uri, (str, Path)):
             if os.path.exists(uri_str) or uri_str.startswith("gs://"):
                 try:
                     return self.classify_with_gemini(uri_str)

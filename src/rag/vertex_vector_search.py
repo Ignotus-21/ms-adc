@@ -104,7 +104,7 @@ class VertexVectorSearchClient:
                 }
             )
 
-            with urllib.request.urlopen(req, timeout=5) as resp:
+            with urllib.request.urlopen(req, timeout=15) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
                 results = []
                 nearest = data.get("nearestNeighbors", [{}])[0].get("neighbors", [])
@@ -120,9 +120,11 @@ class VertexVectorSearchClient:
                     self.cache.set(query, top_k, results)
                     return results
         except Exception as e:
-            logger.info(f"Vertex Vector Search remote query bypassed ({e}), using local chamber-grounded retriever.")
+            logger.error(f"Vertex Vector Search live ScaNN query failed: {e}")
+            if os.getenv("ENVIRONMENT") == "production":
+                raise RuntimeError(f"Vertex Vector Search Index Endpoint query failed: {e}") from e
 
-        # 3. Local fallback to deterministic FMEARetriever
+        # 3. Offline/Unit-test fallback for non-production environments
         from src.rag.fmea_retriever import FMEARetriever
         fallback_retriever = FMEARetriever(corpus_dir=self.corpus_dir, cache=self.cache)
         results = fallback_retriever.retrieve(query, top_k=top_k)
