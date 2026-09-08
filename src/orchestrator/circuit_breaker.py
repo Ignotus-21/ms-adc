@@ -1,3 +1,4 @@
+import os
 import time
 from enum import Enum
 from typing import Callable, Any, Tuple, Optional
@@ -10,12 +11,12 @@ class CircuitState(Enum):
 class CircuitBreaker:
     """
     Protects downstream metrology systems from cascading timeouts, 429 quota exhaustion, and cloud outages (Comp 21).
-    Enforces a strict SLA execution budget (default 2.5s) before tripping to local edge fallback.
+    Enforces a strict SLA execution budget (default 15.0s) before tripping to local edge fallback.
     """
-    def __init__(self, failure_threshold: int = 3, recovery_time_s: float = 5.0, timeout_s: float = 2.5):
+    def __init__(self, failure_threshold: int = 3, recovery_time_s: float = 5.0, timeout_s: Optional[float] = None):
         self.failure_threshold = failure_threshold
         self.recovery_time_s = recovery_time_s
-        self.timeout_s = timeout_s
+        self.timeout_s = timeout_s if timeout_s is not None else float(os.getenv("CIRCUIT_BREAKER_TIMEOUT_S", "15.0"))
         self.failure_count = 0
         self.last_failure_time = 0.0
         self.state = CircuitState.CLOSED
