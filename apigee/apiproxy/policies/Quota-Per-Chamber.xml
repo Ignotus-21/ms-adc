@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Quota async="false" continueOnError="false" enabled="true" name="Quota-Per-Chamber" type="calendar">
+<Quota async="false" continueOnError="false" enabled="true" name="Quota-Per-Chamber" type="rollingwindow">
     <DisplayName>Enforce Chamber Inspection Quota</DisplayName>
     <Identifier ref="verifyapikey.Verify-Fab-API-Key.client_id"/>
     <Allow count="1000"/>
