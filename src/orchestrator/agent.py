@@ -456,9 +456,17 @@ class MetrologyCoordinatorAgent(LlmAgent):
         tool_call_trace = []
 
         ticket_text = request_data.get("engineer_ticket", request_data.get("operator_notes", ""))
-        valid, msg = self.prompt_guard.validate_input(ticket_text)
-        if not valid:
-            raise ValueError(f"Security Alert: {msg}")
+        ingress_res = self.prompt_guard.sanitize_user_prompt(ticket_text)
+        if not ingress_res.get("is_safe", True):
+            raise ValueError("Security Alert: Vertex Model Armor Ingress Alert: Prompt Injection or Jailbreak Attempt Blocked")
+
+        ingress_meta = {
+            "template": self.prompt_guard.ingress_template_name,
+            "direction": "INGRESS",
+            "is_safe": ingress_res.get("is_safe", True),
+            "filter_match_state": ingress_res.get("filter_match_state", "NO_MATCH_FOUND"),
+            "engine": ingress_res.get("engine", "Google_Cloud_Vertex_AI_Model_Armor_Live")
+        }
 
         sanitized_data, _ = self.dlp.sanitize_dict(request_data)
         lot_info = sanitized_data.get("lot_info", {})
@@ -514,9 +522,18 @@ class MetrologyCoordinatorAgent(LlmAgent):
         raw_rec_action = self._extract_grounded_action(chamber, fmea_citations)
 
         # Step 5: Vertex AI Model Armor Egress Template Verification
-        is_safe_egress, rec_action = self.prompt_guard.validate_output(raw_rec_action)
-        if not is_safe_egress:
+        egress_res = self.prompt_guard.sanitize_model_response(raw_rec_action)
+        egress_meta = {
+            "template": self.prompt_guard.egress_template_name,
+            "direction": "EGRESS",
+            "is_safe": egress_res.get("is_safe", True),
+            "filter_match_state": egress_res.get("filter_match_state", "NO_MATCH_FOUND"),
+            "engine": egress_res.get("engine", "Google_Cloud_Vertex_AI_Model_Armor_Live")
+        }
+        if not egress_res.get("is_safe", True):
             rec_action = "Security Notice: Output sanitized by Vertex Model Armor Egress Template to prevent secret disclosure."
+        else:
+            rec_action = raw_rec_action
 
         latency_ms = round((time.time() - start_time) * 1000.0, 2)
         circuit_status = "CIRCUIT_OPEN_FALLBACK" if self.circuit_breaker.state == CircuitState.OPEN else "PRIMARY_SUCCESS"
@@ -555,8 +572,10 @@ class MetrologyCoordinatorAgent(LlmAgent):
                 circuit_breaker_status=circuit_status
             )
 
-        d0 = wafer_obs.get("defect_density_D0", 0.0)
-        yield_pct = wafer_obs.get("die_yield_pct", round(max(0.0, (1.0 - d0) * 100.0), 2))
+        d0 = wafer_obs.get("defect_density_D0") if wafer_obs.get("defect_density_D0") is not None else 0.0
+        yield_pct = wafer_obs.get("die_yield_pct")
+        if yield_pct is None:
+            yield_pct = round(max(0.0, (1.0 - float(d0)) * 100.0), 2)
 
         return {
             "inspection_id": inspection_id,
@@ -577,5 +596,7 @@ class MetrologyCoordinatorAgent(LlmAgent):
             "tool_call_trace": tool_call_trace,
             "execution_latency_ms": latency_ms,
             "circuit_breaker_status": circuit_status,
-            "agent_framework": "Google_Agent_Development_Kit_2.0"
+            "agent_framework": "Google_Agent_Development_Kit_2.0",
+            "model_armor_ingress": ingress_meta,
+            "model_armor_egress": egress_meta
         }

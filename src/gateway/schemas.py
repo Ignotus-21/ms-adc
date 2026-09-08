@@ -94,6 +94,8 @@ try:
         execution_latency_ms: float
         audit_id: str
         circuit_breaker_status: str
+        model_armor_ingress: Optional[Dict[str, Any]] = None
+        model_armor_egress: Optional[Dict[str, Any]] = None
 
     class WaferInspectionResponse(BaseModel):
         lot_id: str
