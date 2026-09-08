@@ -40,7 +40,7 @@ except ImportError:
             self,
             name: str,
             instruction: str = "",
-            model: str = "gemini-2.0-flash",
+            model: str = "gemini-2.5-flash",
             tools: Optional[List[BaseTool]] = None,
             subagents: Optional[List['BaseAgent']] = None
         ):
@@ -214,7 +214,7 @@ class MetrologyCoordinatorAgent(LlmAgent):
 
         super().__init__(
             name="metrology_coordinator_orchestrator",
-            model="gemini-2.0-pro",
+            model="gemini-2.5-flash",
             instruction="""You are the Lead Cleanroom Metrology AI Coordinator.
             When an engineer submits an investigation request with inspection images:
             1. Visually identify full wafer disc scans and invoke `inspect_wafer_map`.
@@ -322,7 +322,7 @@ class MetrologyCoordinatorAgent(LlmAgent):
         snippet = target_chunk.get("snippet", content[:250])
         return f"Execute corrective action per {doc_id}: {snippet.strip()}"
 
-    def inspect_wafer_only(self, payload: Dict[str, Any], user_identity: str) -> Dict[str, Any]:
+    def inspect_wafer_only(self, payload: Dict[str, Any], user_identity: str, background_tasks: Optional[Any] = None) -> Dict[str, Any]:
         """
         Specialized endpoint for wafer-map-only inspections (POST /v1/inspect/wafer).
         Executes ONLY the Wafer Specialist without invoking unrelated die models.
@@ -343,18 +343,33 @@ class MetrologyCoordinatorAgent(LlmAgent):
         latency_ms = round((time.time() - start_time) * 1000.0, 2)
         circuit_status = "CIRCUIT_OPEN_FALLBACK" if self.circuit_breaker.state == CircuitState.OPEN else "PRIMARY_SUCCESS"
 
-        self.audit_logger.log_inspection_event(
-            inspection_id=inspection_id,
-            lot_id=sanitized.get("lot_id", "LOT-WAFER"),
-            wafer_id="W-01",
-            user_identity=user_identity,
-            macro_defect=wafer_obs["macro_defect"],
-            micro_defect="N/A",
-            fmea_citation="N/A",
-            latency_ms=latency_ms,
-            chamber=chamber,
-            circuit_breaker_status=circuit_status
-        )
+        if background_tasks is not None:
+            background_tasks.add_task(
+                self.audit_logger.log_inspection_event,
+                inspection_id=inspection_id,
+                lot_id=sanitized.get("lot_id", "LOT-WAFER"),
+                wafer_id="W-01",
+                user_identity=user_identity,
+                macro_defect=wafer_obs["macro_defect"],
+                micro_defect="N/A",
+                fmea_citation="N/A",
+                latency_ms=latency_ms,
+                chamber=chamber,
+                circuit_breaker_status=circuit_status
+            )
+        else:
+            self.audit_logger.log_inspection_event(
+                inspection_id=inspection_id,
+                lot_id=sanitized.get("lot_id", "LOT-WAFER"),
+                wafer_id="W-01",
+                user_identity=user_identity,
+                macro_defect=wafer_obs["macro_defect"],
+                micro_defect="N/A",
+                fmea_citation="N/A",
+                latency_ms=latency_ms,
+                chamber=chamber,
+                circuit_breaker_status=circuit_status
+            )
 
         return {
             "inspection_id": inspection_id,
@@ -371,7 +386,7 @@ class MetrologyCoordinatorAgent(LlmAgent):
             "circuit_breaker_status": circuit_status
         }
 
-    def inspect_die_only(self, payload: Dict[str, Any], user_identity: str) -> Dict[str, Any]:
+    def inspect_die_only(self, payload: Dict[str, Any], user_identity: str, background_tasks: Optional[Any] = None) -> Dict[str, Any]:
         """
         Specialized endpoint for die-micrograph-only inspections (POST /v1/inspect/die).
         Executes ONLY the Die Specialist without invoking unrelated wafer models.
@@ -392,18 +407,33 @@ class MetrologyCoordinatorAgent(LlmAgent):
         latency_ms = round((time.time() - start_time) * 1000.0, 2)
         circuit_status = "CIRCUIT_OPEN_FALLBACK" if self.circuit_breaker.state == CircuitState.OPEN else "PRIMARY_SUCCESS"
 
-        self.audit_logger.log_inspection_event(
-            inspection_id=inspection_id,
-            lot_id=sanitized.get("lot_id", "LOT-DIE"),
-            wafer_id="W-01",
-            user_identity=user_identity,
-            macro_defect="N/A",
-            micro_defect=die_obs["micro_defect"],
-            fmea_citation="N/A",
-            latency_ms=latency_ms,
-            chamber=chamber,
-            circuit_breaker_status=circuit_status
-        )
+        if background_tasks is not None:
+            background_tasks.add_task(
+                self.audit_logger.log_inspection_event,
+                inspection_id=inspection_id,
+                lot_id=sanitized.get("lot_id", "LOT-DIE"),
+                wafer_id="W-01",
+                user_identity=user_identity,
+                macro_defect="N/A",
+                micro_defect=die_obs["micro_defect"],
+                fmea_citation="N/A",
+                latency_ms=latency_ms,
+                chamber=chamber,
+                circuit_breaker_status=circuit_status
+            )
+        else:
+            self.audit_logger.log_inspection_event(
+                inspection_id=inspection_id,
+                lot_id=sanitized.get("lot_id", "LOT-DIE"),
+                wafer_id="W-01",
+                user_identity=user_identity,
+                macro_defect="N/A",
+                micro_defect=die_obs["micro_defect"],
+                fmea_citation="N/A",
+                latency_ms=latency_ms,
+                chamber=chamber,
+                circuit_breaker_status=circuit_status
+            )
 
         return {
             "inspection_id": inspection_id,
@@ -420,7 +450,7 @@ class MetrologyCoordinatorAgent(LlmAgent):
             "circuit_breaker_status": circuit_status
         }
 
-    def process_inspection(self, request_data: Dict[str, Any], user_identity: str) -> Dict[str, Any]:
+    def process_inspection(self, request_data: Dict[str, Any], user_identity: str, background_tasks: Optional[Any] = None) -> Dict[str, Any]:
         start_time = time.time()
         inspection_id = f"INSP-{uuid.uuid4().hex[:8].upper()}"
         tool_call_trace = []
@@ -493,20 +523,37 @@ class MetrologyCoordinatorAgent(LlmAgent):
 
         # Audit Logging
         primary_citation = fmea_citations[0]["doc_id"] if fmea_citations else "NONE"
-        self.audit_logger.log_inspection_event(
-            inspection_id=inspection_id,
-            lot_id=lot_id,
-            wafer_id="W-01",
-            user_identity=user_identity,
-            macro_defect=macro_defect,
-            micro_defect=micro_defect,
-            fmea_citation=primary_citation,
-            latency_ms=latency_ms,
-            chamber=chamber,
-            macro_confidence=macro_conf,
-            micro_confidence=micro_conf,
-            circuit_breaker_status=circuit_status
-        )
+        if background_tasks is not None:
+            background_tasks.add_task(
+                self.audit_logger.log_inspection_event,
+                inspection_id=inspection_id,
+                lot_id=lot_id,
+                wafer_id="W-01",
+                user_identity=user_identity,
+                macro_defect=macro_defect,
+                micro_defect=micro_defect,
+                fmea_citation=primary_citation,
+                latency_ms=latency_ms,
+                chamber=chamber,
+                macro_confidence=macro_conf,
+                micro_confidence=micro_conf,
+                circuit_breaker_status=circuit_status
+            )
+        else:
+            self.audit_logger.log_inspection_event(
+                inspection_id=inspection_id,
+                lot_id=lot_id,
+                wafer_id="W-01",
+                user_identity=user_identity,
+                macro_defect=macro_defect,
+                micro_defect=micro_defect,
+                fmea_citation=primary_citation,
+                latency_ms=latency_ms,
+                chamber=chamber,
+                macro_confidence=macro_conf,
+                micro_confidence=micro_conf,
+                circuit_breaker_status=circuit_status
+            )
 
         d0 = wafer_obs.get("defect_density_D0", 0.0)
         yield_pct = wafer_obs.get("die_yield_pct", round(max(0.0, (1.0 - d0) * 100.0), 2))

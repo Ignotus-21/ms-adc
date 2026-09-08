@@ -1,8 +1,15 @@
 from typing import Dict, Any, Optional
 
 try:
-    from fastapi import APIRouter, Depends, HTTPException, status
+    from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 except ImportError:
+    class BackgroundTasks:
+        def add_task(self, func, *args, **kwargs):
+            try:
+                func(*args, **kwargs)
+            except Exception:
+                pass
+
     class APIRouter:
         def __init__(self, prefix: str = "", tags: Optional[list] = None):
             self.prefix = prefix
@@ -54,6 +61,7 @@ agent = MetrologyCoordinatorAgent()
 @router.post("/inspect", response_model=InspectionResponse)
 async def composite_inspection(
     request: CompositeInspectionRequest,
+    background_tasks: BackgroundTasks,
     principal: str = "authorized_cleanroom_engineer"
 ):
     """
@@ -61,13 +69,14 @@ async def composite_inspection(
     """
     try:
         data = request.model_dump() if hasattr(request, "model_dump") else (request.dict() if hasattr(request, "dict") else dict(request))
-        return agent.process_inspection(data, user_identity=principal)
+        return agent.process_inspection(data, user_identity=principal, background_tasks=background_tasks)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 @router.post("/inspect/wafer", response_model=WaferInspectionResponse)
 async def inspect_wafer(
     request: WaferInspectionRequest,
+    background_tasks: BackgroundTasks,
     principal: str = "authorized_cleanroom_engineer"
 ):
     """
@@ -75,13 +84,14 @@ async def inspect_wafer(
     """
     try:
         data = request.model_dump() if hasattr(request, "model_dump") else (request.dict() if hasattr(request, "dict") else dict(request))
-        return agent.inspect_wafer_only(data, user_identity=principal)
+        return agent.inspect_wafer_only(data, user_identity=principal, background_tasks=background_tasks)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 @router.post("/inspect/die", response_model=DieInspectionResponse)
 async def inspect_die(
     request: DieInspectionRequest,
+    background_tasks: BackgroundTasks,
     principal: str = "authorized_cleanroom_engineer"
 ):
     """
@@ -89,6 +99,6 @@ async def inspect_die(
     """
     try:
         data = request.model_dump() if hasattr(request, "model_dump") else (request.dict() if hasattr(request, "dict") else dict(request))
-        return agent.inspect_die_only(data, user_identity=principal)
+        return agent.inspect_die_only(data, user_identity=principal, background_tasks=background_tasks)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
