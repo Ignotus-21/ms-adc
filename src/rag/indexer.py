@@ -29,7 +29,14 @@ class FMEAIndexer:
 
     def load_and_chunk_corpus(self) -> List[FMEAChunk]:
         self.chunks = []
-        md_files = list(self.corpus_dir.glob("*.md"))
+        doc_order = [
+            "300mm_rie_plasma_etch_fmea.md",
+            "300mm_photolithography_fmea.md",
+            "300mm_cmp_planarization_fmea.md"
+        ]
+        ordered_files = [self.corpus_dir / f for f in doc_order if (self.corpus_dir / f).exists()]
+        remaining = sorted([p for p in self.corpus_dir.glob("*.md") if p not in ordered_files])
+        md_files = ordered_files + remaining
         if not md_files:
             raise FileNotFoundError(f"No FMEA markdown files found in {self.corpus_dir}")
 

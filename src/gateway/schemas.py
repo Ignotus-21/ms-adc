@@ -96,6 +96,8 @@ try:
         circuit_breaker_status: str
         model_armor_ingress: Optional[Dict[str, Any]] = None
         model_armor_egress: Optional[Dict[str, Any]] = None
+        tool_call_trace: Optional[List[Dict[str, Any]]] = None
+        agent_framework: Optional[str] = None
 
     class WaferInspectionResponse(BaseModel):
         lot_id: str

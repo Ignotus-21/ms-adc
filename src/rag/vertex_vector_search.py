@@ -37,7 +37,12 @@ class VertexVectorSearchClient:
         self.corpus_dir = corpus_dir or (Path(__file__).parent.parent.parent / "data" / "fmea_corpus")
         self.indexer = FMEAIndexer(self.corpus_dir)
         self.chunks = self.indexer.load_and_chunk_corpus()
-        self.chunk_map = {f"{c.doc_id}_{i+1}": c.to_dict() for i, c in enumerate(self.chunks)}
+        self.chunk_map = {}
+        for i, c in enumerate(self.chunks):
+            c_dict = c.to_dict()
+            self.chunk_map[f"{c.doc_id}_{i+1}"] = c_dict
+            self.chunk_map[str(i+1)] = c_dict
+            self.chunk_map[f"chunk_{i+1}"] = c_dict
         self.cache = cache or SemanticRAGCache()
 
     def embed_text(self, text: str) -> List[float]:
@@ -61,12 +66,15 @@ class VertexVectorSearchClient:
     def search(self, query: str, top_k: int = 2) -> List[Dict[str, Any]]:
         """
         Queries the deployed Vertex AI Vector Search Index for nearest neighbor FMEA chunks.
-        Falls back seamlessly to local semantic cache and keyword scoring if the remote endpoint is warming up.
+        Strict execution in production: queries ScaNN index endpoint directly and returns real cosine similarity.
         """
         # 1. Semantic Cache check
         cached_result = self.cache.get(query, top_k)
         if cached_result is not None:
             return cached_result
+
+        env_val = (os.getenv("ENVIRONMENT") or getattr(settings, "ENVIRONMENT", "")).lower()
+        is_production = (env_val == "production")
 
         # 2. Query live deployed Vertex AI Index Endpoint via public REST API
         query_vector = self.embed_text(query)
@@ -112,6 +120,13 @@ class VertexVectorSearchClient:
                     dp_id = n.get("datapoint", {}).get("datapointId", "")
                     distance = float(n.get("distance", 0.0))
                     chunk_dict = dict(self.chunk_map.get(dp_id, {}))
+                    if not chunk_dict:
+                        import re
+                        m = re.search(r"_(\d+)$", dp_id)
+                        if m:
+                            idx = int(m.group(1)) - 1
+                            if 0 <= idx < len(self.chunks):
+                                chunk_dict = self.chunks[idx].to_dict()
                     if chunk_dict:
                         chunk_dict["similarity_score"] = round(max(0.0, 1.0 - distance), 4)
                         results.append(chunk_dict)
@@ -119,10 +134,18 @@ class VertexVectorSearchClient:
                 if results:
                     self.cache.set(query, top_k, results)
                     return results
+                else:
+                    logger.error(f"Vertex Vector Search returned {len(nearest)} neighbors, but none mapped to chunk_map. Neighbor IDs: {[n.get('datapoint', {}).get('datapointId') for n in nearest]}")
+                    if is_production:
+                        raise RuntimeError(f"Vertex Vector Search ScaNN returned neighbors but no matching chunks in chunk_map.")
         except Exception as e:
             logger.error(f"Vertex Vector Search live ScaNN query failed: {e}")
-            if os.getenv("ENVIRONMENT") == "production":
+            if is_production:
                 raise RuntimeError(f"Vertex Vector Search Index Endpoint query failed: {e}") from e
+
+        # Fail fast in production - never use keyword fallback in production
+        if is_production:
+            raise RuntimeError("Vertex Vector Search failed to return citations in production environment.")
 
         # 3. Offline/Unit-test fallback for non-production environments
         from src.rag.fmea_retriever import FMEARetriever
