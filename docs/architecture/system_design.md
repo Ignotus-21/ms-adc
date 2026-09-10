@@ -1,8 +1,7 @@
 # MS-ADC System Design & Architecture Specification
 
 **Document Version:** 2.0.0  
-**Author:** Aditya Sharma (Lead AI/ML Engineer)  
-**Co-Author:** Kshitiz Khandelwal (Lead AI Architect)  
+**Author:** Kshitiz Khandelwal (Lead AI Systems Architect)  
 **Competencies Demonstrated:** Comp 9 (System Design Artifacts)  
 
 ---
