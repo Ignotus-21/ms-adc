@@ -15,7 +15,7 @@ from src.rag.vertex_vector_search import VertexVectorSearchClient
 from src.models.wafer_vlm import WaferVLMClassifier
 
 # ============================================================================
-# Google Agent Development Kit (ADK 2.0) Architecture & Tooling Interfaces
+# Google Agent Development Kit (ADK) Architecture & Tooling Interfaces
 # ============================================================================
 # Set official Google GenAI Vertex AI environment configuration
 os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "true"
@@ -150,7 +150,7 @@ class DieVFMSpecialistModel:
 
 class MetrologyCoordinatorAgent:
     """
-    Autonomous Multi-Agent Coordinator using official Google Agent Development Kit (ADK 2.0).
+    Autonomous Multi-Agent Coordinator using official Google Agent Development Kit (ADK).
     Executes real vision models, retrieves grounded FMEA citations via Vertex Vector Search,
     and derives actions dynamically through Gemini 2.5 Flash.
     """

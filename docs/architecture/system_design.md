@@ -29,7 +29,7 @@ graph TD
     end
 
     %% 4. Agent Orchestration Layer
-    subgraph S4 ["4. Central Coordinator Agent (Google ADK 2.0)"]
+    subgraph S4 ["4. Central Coordinator Agent (Google ADK)"]
         ADK["Metrology Coordinator Agent<br/>• Gemini Pro Reasoning Engine<br/>• Tool-Calling Dispatch & Circuit Breaker SLA"]
     end
 

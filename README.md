@@ -3,7 +3,7 @@
 [![GCP Cloud Run](https://img.shields.io/badge/GCP-Cloud%20Run%20(Production)-4285F4.svg)](https://cloud.google.com/run)
 [![Model Armor](https://img.shields.io/badge/Security-Vertex%20AI%20Model%20Armor-34A853.svg)](https://cloud.google.com/vertex-ai)
 [![Apigee Edge](https://img.shields.io/badge/Gateway-Google%20Cloud%20Apigee-EA4335.svg)](https://cloud.google.com/apigee)
-[![Agent Development Kit](https://img.shields.io/badge/Agent-Google%20ADK%202.0%20GenAI-FBBC04.svg)](https://cloud.google.com/vertex-ai)
+[![Agent Development Kit](https://img.shields.io/badge/Agent-Google%20ADK%20GenAI-FBBC04.svg)](https://cloud.google.com/vertex-ai)
 [![Multimodal VLM](https://img.shields.io/badge/VLM-Gemini%202.5%20Flash-9C27B0.svg)](https://deepmind.google/technologies/gemini/)
 [![Vision AI](https://img.shields.io/badge/Vision-NV--DINOv2%20ViT--L%2F14-76B900.svg)](https://developer.nvidia.com/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
@@ -24,7 +24,7 @@ The MS-ADC platform is deployed and actively serving production metrology traffi
 | **Edge Hostname** | Apigee Environment Group | `metrology.cleanroom.internal` |
 | **Model Armor Ingress** | Vertex AI Managed Prompt Injection Filter | `cleanroom-metrology-ingress-template` (`us-central1`) |
 | **Model Armor Egress** | Vertex AI Managed Sensitive Data & Secret Filter | `cleanroom-metrology-egress-template` (`us-central1`) |
-| **Central Coordinator** | Google Agent Development Kit 2.0 (GenAI Native) | Tool calling, circuit breaker SLA, parallel dispatch |
+| **Central Coordinator** | Google Agent Development Kit (ADK) | Tool calling, circuit breaker SLA, parallel dispatch |
 | **Wafer VLM Specialist** | Gemini 2.5 Flash Multimodal (`gemini-2.5-flash`) | Zero-hallucination structured 300mm spatial reasoning |
 | **Die VFM Specialist** | PyTorch NV-DINOv2 ViT-L/14 linear probe | Micro-defect optical patch classification (<50ms) |
 | **FMEA RAG Vector Search** | Vertex AI Vector Search ScaNN Index Endpoint | Endpoint ID: `2893710095143665664` (768-dim) |
@@ -56,7 +56,7 @@ The MS-ADC platform is deployed and actively serving production metrology traffi
                                                          │ (Sanitized Cleanroom Payload)
                                                          ▼
          ┌───────────────────────────────────────────────────────────────────────────────────────────┐
-         │                   COORDINATOR AGENT (Google Agent Development Kit 2.0)                    │
+         │                   COORDINATOR AGENT (Google Agent Development Kit)                        │
          │  • Native GenAI Tool Calling & Asynchronous Vision Specialist Orchestration               │
          │  • Circuit Breaker SLA Guard (Adaptive 15.0s SLA timeout, Half-Open recovery)             │
          └───────────────────────┬───────────────────────────────────────────┬───────────────────────┘
