@@ -8,6 +8,7 @@ from src.models.wafer_vlm import WaferVLMClassifier
 
 class TestWaferImageIngestion(unittest.TestCase):
     def setUp(self):
+        os.environ["USE_GEMINI_VLM"] = "false"
         self.classifier = WaferVLMClassifier()
         self.temp_dir = tempfile.TemporaryDirectory()
         self.test_img_path = os.path.join(self.temp_dir.name, "unit_test_wafer.bmp")

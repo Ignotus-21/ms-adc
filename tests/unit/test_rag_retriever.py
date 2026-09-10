@@ -80,5 +80,89 @@ class TestFMEARAGKnowledgeEngine(unittest.TestCase):
         tiny_retriever.retrieve("query 3", top_k=1)
         self.assertEqual(tiny_cache.metrics["cache_size"], 2)
 
+    def test_hybrid_l1_stage1_exact_facet_hit(self):
+        cache = SemanticRAGCache(max_size=10, ttl_seconds=60)
+        query_payload = {
+            "wafer_class": "ring_defect",
+            "die_class": "bridge_defect",
+            "pattern": {
+                "location": "edge",
+                "shape": "elongated",
+                "orientation": "vertical",
+                "distribution": "clustered",
+                "description": "A very long vertical defect pattern near outer edge"
+            },
+            "chamber": "300mm_RIE_Etch_Chamber_3"
+        }
+        mock_playbook = [{"doc_id": "FMEA-SOP-ETCH-300-CH3", "section": "3.2"}]
+
+        # 1st: Miss & Set
+        self.assertIsNone(cache.get(query_payload, top_k=2))
+        cache.set(query_payload, top_k=2, data=mock_playbook)
+
+        # 2nd: Stage 1 Exact Facet Hit
+        cached = cache.get(query_payload, top_k=2)
+        self.assertEqual(cached, mock_playbook)
+        self.assertEqual(cache.metrics["stage1_facet_hits"], 1)
+        self.assertEqual(cache.metrics["stage2_vector_hits"], 0)
+
+    def test_hybrid_l1_stage2_vector_similarity_hit(self):
+        cache = SemanticRAGCache(max_size=10, ttl_seconds=60)
+        base_vector = [0.12, 0.45, 0.88, 0.05, 0.33]
+        # Very close vector (high cosine similarity > 0.99)
+        similar_vector = [0.121, 0.449, 0.882, 0.049, 0.331]
+
+        cache_entry = {
+            "wafer_class": "ring_defect",
+            "die_class": "bridge_defect",
+            "pattern": {
+                "location": "edge",
+                "shape": "elongated",
+                "orientation": "vertical",
+                "description": "A very long vertical defect pattern near outer edge"
+            },
+            "descr_embedding": base_vector,
+            "chamber": "300mm_RIE_Etch_Chamber_3"
+        }
+        mock_playbook = [{"doc_id": "FMEA-SOP-ETCH-300-CH3", "fix": "Replace focus ring"}]
+        cache.set(cache_entry, top_k=2, data=mock_playbook)
+
+        # Incoming query has slightly different orientation/description, but same classes and high vector similarity
+        incoming_query = {
+            "wafer_class": "ring_defect",
+            "die_class": "bridge_defect",
+            "pattern": {
+                "location": "edge",
+                "shape": "elongated",
+                "orientation": "radial_vertical",  # slight variation misses Stage 1
+                "description": "Perimeter vertical bridging streak"
+            },
+            "descr_embedding": similar_vector,
+            "chamber": "300mm_RIE_Etch_Chamber_3"
+        }
+
+        # Should fall back to Stage 2 vector similarity and hit!
+        result = cache.get(incoming_query, top_k=2, min_similarity=0.95)
+        self.assertEqual(result, mock_playbook)
+        self.assertEqual(cache.metrics["stage2_vector_hits"], 1)
+
+    def test_hybrid_l1_prefilter_rejection(self):
+        cache = SemanticRAGCache(max_size=10, ttl_seconds=60)
+        vec = [1.0, 0.0, 0.0]
+        cache.set({
+            "wafer_class": "center",
+            "die_class": "short",
+            "descr_embedding": vec
+        }, top_k=1, data="Etch Playbook")
+
+        # Different wafer class must NOT match even if vector is identical (pre-filter safety)
+        miss = cache.get({
+            "wafer_class": "scratch",
+            "die_class": "short",
+            "descr_embedding": vec
+        }, top_k=1, min_similarity=0.5)
+        self.assertIsNone(miss)
+
 if __name__ == "__main__":
     unittest.main()
+
