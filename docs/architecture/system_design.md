@@ -30,13 +30,13 @@ graph TD
 
     %% 4. Agent Orchestration Layer
     subgraph S4 ["4. Central Coordinator Agent (Google ADK 2.0)"]
-        ADK["Metrology Coordinator Agent<br/>• Gemini 2.5 Flash Reasoning Engine<br/>• Tool-Calling Dispatch & Circuit Breaker SLA"]
+        ADK["Metrology Coordinator Agent<br/>• Gemini Pro Reasoning Engine<br/>• Tool-Calling Dispatch & Circuit Breaker SLA"]
     end
 
     %% 5. Multimodal Vision Layer
     subgraph S5 ["5. Multimodal Vision Specialist Tier"]
         direction LR
-        WaferVLM["Wafer VLM Specialist<br/><i>(Gemini 2.5 Flash / Spatial Matrix)</i><br/>Macro: Center, Ring, Edge, Scratch"]
+        WaferVLM["Wafer VLM Specialist<br/><i>(Gemini Pro / Spatial Matrix)</i><br/>Macro: Center, Ring, Edge, Scratch"]
         DieVFM["Die VFM Specialist<br/><i>(DINOv2 ViT-L/14 Linear Probe &lt;50ms)</i><br/>Micro: Short, Void, Spur, Bridge"]
     end
 
