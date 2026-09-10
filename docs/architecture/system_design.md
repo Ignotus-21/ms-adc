@@ -7,69 +7,68 @@
 
 ---
 
-## 1. High-Level Architecture Overview
+## 1. High-Level Linear Architecture Overview
 
-MS-ADC is an enterprise multi-agent metrology platform engineered for automated defect classification (ADC) and root-cause analysis (RCA) in 300mm semiconductor cleanrooms. It bridges high-throughput edge vision models (Wafer VLM and Die VFM) coordinated by an autonomous Google Agent Development Kit (ADK 2.0) orchestrator, safeguarded by Google Cloud Apigee and Vertex AI Model Armor, and grounded in SEMI-E10 FMEA playbooks via an in-memory hybrid semantic cache and Vertex AI Vector Search.
+MS-ADC is an enterprise multi-agent metrology platform for automated defect classification (ADC) and root-cause analysis (RCA) in 300mm cleanrooms. The architecture follows a strict, end-to-end linear pipeline:
 
 ```mermaid
-flowchart TD
-    subgraph ClientLayer ["Client & Cleanroom Ingestion Layer"]
-        MES["Fab MES / Metrology Tool Track (ASML, KLA, Lam)"]
-        Engineer["Cleanroom Process Engineer Web UI / CLI"]
+graph TD
+    %% 1. Ingestion Layer
+    subgraph S1 ["1. Cleanroom Ingestion Layer"]
+        Client["Fab MES & Cleanroom Process Engineer<br/><i>(ASML Scanners, KLA Tracks, Engineer UI)</i>"]
     end
 
-    subgraph EdgePerimeter ["Enterprise Edge API Perimeter (Google Cloud Apigee)"]
-        ApigeeProxy["Apigee Edge Proxy (MS-ADC-Metrology-v1)"]
-        SpikeArrest["Spike Arrest (120 req/min) & Chamber Quota"]
-        ToolAuth["Fab API Key Validation & Google OIDC Token Minting"]
+    %% 2. Edge Gateway Layer
+    subgraph S2 ["2. Enterprise Edge Perimeter (Google Cloud Apigee)"]
+        Apigee["Apigee Edge Gateway (MS-ADC-Metrology-v1)<br/>• Spike Arrest (120 req/min) & Chamber Quotas<br/>• Tool API Key Validation<br/>• Google Cloud OIDC Bearer Token Minting"]
     end
 
-    subgraph SecurityPerimeter ["Inference Gateway & Security Perimeter (Cloud Run)"]
-        FastAPIGateway["FastAPI Gateway (/v1/inspect)"]
-        ModelArmorIngress["Vertex AI Model Armor (Ingress Prompt Guard)"]
-        ModelArmorEgress["Vertex AI Model Armor (Egress IP Exfiltration Guard)"]
+    %% 3. Ingress Security Layer
+    subgraph S3 ["3. AI Security Ingress (Vertex AI Model Armor)"]
+        ModelArmorIn["Model Armor Ingress Filter<br/>• Prompt Injection & Jailbreak Defense<br/>• Proprietary Recipe & Secret Redaction"]
     end
 
-    subgraph AgentOrchestration ["Autonomous Agent Tier (Google ADK 2.0)"]
-        Coordinator["Metrology Coordinator Agent (Gemini 2.5 Flash / ADK)"]
-        CircuitBreaker["Circuit Breaker (Closed, Open, Half-Open SLA)"]
-        ToolRouter{"Dynamic Tool-Calling Router"}
+    %% 4. Agent Orchestration Layer
+    subgraph S4 ["4. Central Coordinator Agent (Google ADK 2.0)"]
+        ADK["Metrology Coordinator Agent<br/>• Gemini 2.5 Flash Reasoning Engine<br/>• Tool-Calling Dispatch & Circuit Breaker SLA"]
     end
 
-    subgraph VisionSpecialists ["Multimodal Vision Tier"]
-        WaferVLM["Wafer VLM Specialist\n(Gemini 2.5 Flash / Spatial Matrix Analysis)"]
-        DieVFM["Die VFM Specialist\n(PyTorch DINOv2 ViT-L/14 Linear Probe <50ms)"]
+    %% 5. Multimodal Vision Layer
+    subgraph S5 ["5. Multimodal Vision Specialist Tier"]
+        direction LR
+        WaferVLM["Wafer VLM Specialist<br/><i>(Gemini 2.5 Flash / Spatial Matrix)</i><br/>Macro: Center, Ring, Edge, Scratch"]
+        DieVFM["Die VFM Specialist<br/><i>(DINOv2 ViT-L/14 Linear Probe &lt;50ms)</i><br/>Micro: Short, Void, Spur, Bridge"]
     end
 
-    subgraph KnowledgeTier ["RAG Knowledge & Data Warehouse Tier"]
-        L1Cache[("In-Memory Hybrid Semantic Cache (L1)\n(<1ms Sub-Millisecond Hit)")]
-        VectorDB[("Vertex AI Vector Search\n(ScaNN SEMI-E10 FMEA Index)")]
-        BQ[("BigQuery Metrology Warehouse\n(semicon_metrology.lot_inspections)")]
+    %% 6. Knowledge & RAG Layer
+    subgraph S6 ["6. Root-Cause RAG & Hybrid Caching Tier"]
+        RAG["L1 Semantic Cache & Vertex AI Vector Search<br/>• Fast-Path In-Memory L1 Cache (&lt;1ms)<br/>• ScaNN 768-dim SEMI-E10 FMEA Index (~350ms)"]
     end
 
-    MES -->|SECS/GEM or HTTP| ApigeeProxy
-    Engineer -->|REST /v1/inspect| ApigeeProxy
-    ApigeeProxy --> SpikeArrest --> ToolAuth
-    ToolAuth -->|HTTPS + Google OIDC Bearer| FastAPIGateway
+    %% 7. Egress Guardrail Layer
+    subgraph S7 ["7. AI Egress Security (Vertex AI Model Armor)"]
+        ModelArmorOut["Model Armor Egress Filter<br/>• Manufacturing IP Exfiltration Defense<br/>• Actionable Maintenance SOP Validation"]
+    end
 
-    FastAPIGateway --> ModelArmorIngress
-    ModelArmorIngress -->|Sanitized Cleanroom Payload| Coordinator
+    %% 8. Presentation & Analytics Layer
+    subgraph S8 ["8. Output Delivery & Compliance Warehouse"]
+        Output["Standardized /v1 Diagnostic JSON Report<br/><i>(Returned to Cleanroom MES / Process Engineer)</i>"]
+        BQ[("BigQuery Metrology Warehouse<br/><i>(Async Audit Log & SEMI Telemetry)</i>")]
+    end
 
-    Coordinator --> CircuitBreaker --> ToolRouter
-    ToolRouter -->|Wafer Map Matrix| WaferVLM
-    ToolRouter -->|Die Micrograph Patch| DieVFM
-    WaferVLM -->|Macro Defect JSON| Coordinator
-    DieVFM -->|Micro Defect Code & Probabilities| Coordinator
-
-    Coordinator -->|Defect Facets & Query| L1Cache
-    L1Cache -.->|Cache Miss| VectorDB
-    VectorDB -.->|Cited FMEA SOP Chunks| L1Cache
-    L1Cache -->|Resolved Maintenance Playbook| Coordinator
-
-    Coordinator --> ModelArmorEgress
-    ModelArmorEgress -->|Validated Response| FastAPIGateway
-    Coordinator -->|Async Compliance Stream| BQ
-    FastAPIGateway -->|Standardized /v1 JSON Report| Engineer
+    %% Straight-Down Linear Pipeline Flow
+    Client -->|POST /v1/inspect| Apigee
+    Apigee -->|HTTPS + OIDC Bearer Token| ModelArmorIn
+    ModelArmorIn -->|Sanitized Cleanroom Payload| ADK
+    ADK -->|Dispatch Wafer Map| WaferVLM
+    ADK -->|Dispatch Die Micrograph| DieVFM
+    WaferVLM -->|Macro Spatial Defect JSON| ADK
+    DieVFM -->|Micro Defect Code & Probabilities| ADK
+    ADK -->|Defect Signatures & Query| RAG
+    RAG -->|Grounded FMEA Playbook| ADK
+    ADK -->|Diagnostic Plan| ModelArmorOut
+    ModelArmorOut -->|Validated Report| Output
+    ADK -.->|Async Audit Streaming| BQ
 ```
 
 ---
